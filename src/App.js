@@ -1,93 +1,69 @@
 import React, { useEffect, useState } from "react";
+import { Client } from "@kontist/client";
+import config from "./config";
 import "./App.css";
+
+const { baseAPIUrl, clientId, redirectUri } = config;
+
+const kontistClient = new Client({
+  baseUrl: baseAPIUrl,
+  clientId,
+  redirectUri,
+  scopes: ["users"],
+  state: "some-random-state-value",
+  verifier: "some-random-verifier"
+});
 
 function App() {
   const [user, setUser] = useState();
   const [token, setToken] = useState();
 
   useEffect(() => {
+    const authenticateAndFetchUser = async () => {
+      const token = await kontistClient.auth.fetchToken(document.location.href);
+      setToken(token.accessToken);
+      const { viewer } = await kontistClient.graphQL.rawQuery(`
+        {
+          viewer {
+            firstName
+          }
+        }
+      `);
+      setUser(viewer);
+    };
     const searchParams = new URLSearchParams(window.location.search);
     const code = searchParams.get("code");
 
     if (code) {
-      window.history.replaceState(
-        null,
-        document.title,
-        window.location.pathname
-      );
-      getAccessTokenAndFetchUser(code);
+      authenticateAndFetchUser();
     }
   }, []);
 
-  const refreshAccessTokenViaIframe = () => {
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    document.body.appendChild(iframe);
-    iframe.src =
-      "http://localhost:3000/api/oauth/authorize?client_id=26990216-e340-4f54-b5a5-df9baacc0440&redirect_uri=http://localhost:3001&grant_type=authorization_code&scope=users&response_type=code&response_mode=web_message&state=xxxx&&code_challenge=xc3uY4-XMuobNWXzzfEqbYx3rUYBH69_zu4EFQIJH8w&code_challenge_method=S256&prompt=none";
+  const refreshAccessTokenViaIframe = async () => {
+    const token = await kontistClient.auth.refreshTokenSilently();
+    setToken(token.accessToken);
   };
 
-  useEffect(() => {
-    const onMessage = event => {
-      if (event.origin === "http://localhost:3000") {
-        console.log("message", event.data);
-        if (!event.data.error) {
-          const { code } = event.data.response;
-          getAccessTokenAndFetchUser(code);
-        }
-      }
-    };
-
-    window.addEventListener("message", onMessage);
-    return () => {
-      window.removeEventListener("message", onMessage);
-    };
-  }, []);
-
-  function getAccessTokenAndFetchUser(code) {
-    fetch("http://localhost:3000/api/oauth/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: `client_id=26990216-e340-4f54-b5a5-df9baacc0440&redirect_uri=http://localhost:3001&grant_type=authorization_code&code=${code}&code_verifier=Huag6ykQU7SaEYKtmNUeM8txt4HzEIfG`
-    })
-      .then(response => response.json())
-      .then(body => {
-        const { access_token: accessToken } = body;
-        setToken(accessToken);
-        return fetch("http://localhost:3000/api/user", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
-        });
-      })
-      .then(response => response.json())
-      .then(setUser);
+  async function login() {
+    const url = await kontistClient.auth.getAuthUri();
+    window.location.href = url;
   }
 
   return (
     <div className="App">
       <h1>PKCE Demo</h1>
-      {user && user.firstName ? (
-        <strong>{`Hey ${user.firstName}`}</strong>
-      ) : (
-        <a
-          className="App-link"
-          href="http://localhost:3000/api/oauth/authorize?client_id=26990216-e340-4f54-b5a5-df9baacc0440&redirect_uri=http://localhost:3001&grant_type=authorization_code&scope=users+offline&response_type=code&state=xxxx&code_challenge=xc3uY4-XMuobNWXzzfEqbYx3rUYBH69_zu4EFQIJH8w&code_challenge_method=S256"
-        >
-          Login to Kontist
-        </a>
-      )}
       <div>
-        <a
-          className="App-link"
-          href="http://localhost:3000/api/oauth/authorize?client_id=26990216-e340-4f54-b5a5-df9baacc0440&redirect_uri=http://localhost:3001&grant_type=authorization_code&scope=users&response_type=code&state=xxxx&&code_challenge=xc3uY4-XMuobNWXzzfEqbYx3rUYBH69_zu4EFQIJH8w&code_challenge_method=S256&prompt=none"
-        >
-          Renew token
-        </a>
+        {user && user.firstName ? (
+          <strong>{`Hey ${user.firstName}`}</strong>
+        ) : (
+          <button onClick={login}>Login to Kontist</button>
+        )}
       </div>
-      <button onClick={refreshAccessTokenViaIframe}>Use iframe</button>
+      <div>
+        <button onClick={refreshAccessTokenViaIframe}>
+          Refresh token with iframe
+        </button>
+      </div>
       {token && <div style={{ wordBreak: "break-all" }}>{token}</div>}
     </div>
   );
