@@ -42,11 +42,42 @@ function App() {
   const refreshAccessTokenViaIframe = async () => {
     const token = await kontistClient.auth.refreshTokenSilently();
     setToken(token.accessToken);
+    await kontistClient.graphQL.rawQuery(`
+    {
+      viewer {
+        firstName
+      }
+    }
+  `);
   };
 
   async function login() {
     const url = await kontistClient.auth.getAuthUri();
     window.location.href = url;
+  }
+
+  async function triggerLoginConfirmation() {
+    try {
+      const confirmedToken = await kontistClient.auth.getMFAConfirmedToken();
+      setToken(confirmedToken);
+    } catch (err) {
+      console.log({ err });
+    }
+  }
+
+  const fetchUser = async () => {
+    const { viewer } = await kontistClient.graphQL.rawQuery(`
+      {
+        viewer {
+          firstName
+        }
+      }
+    `);
+    setUser(viewer);
+  };
+
+  function cancelLoginConfirmation() {
+    kontistClient.auth.cancelMFAConfirmation();
   }
 
   return (
@@ -63,6 +94,19 @@ function App() {
         <button onClick={refreshAccessTokenViaIframe}>
           Refresh token with iframe
         </button>
+      </div>
+      <div>
+        <button onClick={triggerLoginConfirmation}>
+          trigger login confirmation
+        </button>
+      </div>
+      <div>
+        <button onClick={cancelLoginConfirmation}>
+          cancel login confirmation
+        </button>
+      </div>
+      <div>
+        <button onClick={fetchUser}>fetch user</button>
       </div>
       {token && <div style={{ wordBreak: "break-all" }}>{token}</div>}
     </div>
