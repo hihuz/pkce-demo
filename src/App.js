@@ -10,7 +10,7 @@ const kontistClient = new Client({
   clientId,
   redirectUri,
   scopes: ["users"],
-  state: "some-random-state-value",
+  state: "some?state&with#uri=components",
   verifier: "some-random-verifier"
 });
 
@@ -22,14 +22,18 @@ function App() {
     const authenticateAndFetchUser = async () => {
       const token = await kontistClient.auth.fetchToken(document.location.href);
       setToken(token.accessToken);
-      const { viewer } = await kontistClient.graphQL.rawQuery(`
+      try {
+        const { viewer } = await kontistClient.graphQL.rawQuery(`
         {
           viewer {
             firstName
           }
         }
       `);
-      setUser(viewer);
+        setUser(viewer);
+      } catch (error) {
+        console.log({ error });
+      }
     };
     const searchParams = new URLSearchParams(window.location.search);
     const code = searchParams.get("code");
@@ -40,7 +44,7 @@ function App() {
   }, []);
 
   const refreshAccessTokenViaIframe = async () => {
-    const token = await kontistClient.auth.refreshTokenSilently();
+    const token = await kontistClient.auth.tokenManager.refresh();
     setToken(token.accessToken);
     await kontistClient.graphQL.rawQuery(`
     {
@@ -58,7 +62,7 @@ function App() {
 
   async function triggerLoginConfirmation() {
     try {
-      const confirmedToken = await kontistClient.auth.getMFAConfirmedToken();
+      const confirmedToken = await kontistClient.auth.push.getConfirmedToken();
       setToken(confirmedToken);
     } catch (err) {
       console.log({ err });
@@ -77,7 +81,7 @@ function App() {
   };
 
   function cancelLoginConfirmation() {
-    kontistClient.auth.cancelMFAConfirmation();
+    kontistClient.auth.push.cancelConfirmation();
   }
 
   return (
@@ -106,7 +110,7 @@ function App() {
         </button>
       </div>
       <div>
-        <button onClick={fetchUser}>fetch user</button>
+        <button onClick={fetchUser}>fetch transfers</button>
       </div>
       {token && <div style={{ wordBreak: "break-all" }}>{token}</div>}
     </div>
