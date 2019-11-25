@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Client } from "@kontist/client";
+import { Client } from "kontist";
 import config from "./config";
 import "./App.css";
 
@@ -7,12 +7,24 @@ const { baseAPIUrl, clientId, redirectUri } = config;
 
 const kontistClient = new Client({
   baseUrl: baseAPIUrl,
+  baseSubscriptionUrl: "ws://localhost:3000",
   clientId,
   redirectUri,
   scopes: ["users"],
   state: "some?state&with#uri=components",
   verifier: "some-random-verifier"
 });
+
+let unsubscribeHandler;
+let unsubscribeHandler2;
+
+const handleNewTransaction = data => {
+  console.log("___data #1___", data);
+};
+
+const handleNewTransaction2 = data => {
+  console.log("___data #2___", data);
+};
 
 function App() {
   const [user, setUser] = useState();
@@ -69,24 +81,36 @@ function App() {
     }
   }
 
-  const fetchUser = async () => {
-    const { viewer } = await kontistClient.graphQL.rawQuery(`
-      {
-        viewer {
-          firstName
-        }
-      }
-    `);
-    setUser(viewer);
-  };
-
   function cancelLoginConfirmation() {
     kontistClient.auth.push.cancelConfirmation();
   }
 
+  const subscribeToTransactions = () => {
+    const unsubscribe = kontistClient.models.transaction.subscribe(
+      handleNewTransaction
+    );
+    unsubscribeHandler = unsubscribe;
+  };
+
+  const unsubscribeToTransactions = () => {
+    console.log("___will unsubscribe #1___");
+    unsubscribeHandler();
+  };
+
+  const subscribeToTransactions2 = () => {
+    const unsubscribe = kontistClient.models.transaction.subscribe(
+      handleNewTransaction2
+    );
+    unsubscribeHandler2 = unsubscribe;
+  };
+
+  const unsubscribeToTransactions2 = () => {
+    console.log("___will unsubscribe #2___");
+    unsubscribeHandler2();
+  };
   return (
     <div className="App">
-      <h1>PKCE Demo</h1>
+      <h1>SDK Sandbox</h1>
       <div>
         {user && user.firstName ? (
           <strong>{`Hey ${user.firstName}`}</strong>
@@ -110,7 +134,24 @@ function App() {
         </button>
       </div>
       <div>
-        <button onClick={fetchUser}>fetch transfers</button>
+        <button onClick={subscribeToTransactions}>
+          subscribe to transactions #1
+        </button>
+      </div>
+      <div>
+        <button onClick={unsubscribeToTransactions}>
+          unsubscribe to transactions #1
+        </button>
+      </div>
+      <div>
+        <button onClick={subscribeToTransactions2}>
+          subscribe to transactions #2
+        </button>
+      </div>
+      <div>
+        <button onClick={unsubscribeToTransactions2}>
+          unubscribe to transactions #2
+        </button>
       </div>
       {token && <div style={{ wordBreak: "break-all" }}>{token}</div>}
     </div>
