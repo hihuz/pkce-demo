@@ -22,6 +22,10 @@ const handleNewTransaction = data => {
   console.log("___data #1___", data);
 };
 
+const handleErrors = error => {
+  console.log("___error #1___", error);
+};
+
 const handleNewTransaction2 = data => {
   console.log("___data #2___", data);
 };
@@ -56,7 +60,7 @@ function App() {
   }, []);
 
   const refreshAccessTokenViaIframe = async () => {
-    const token = await kontistClient.auth.tokenManager.refresh();
+    const token = await kontistClient.auth.refresh();
     setToken(token.accessToken);
     await kontistClient.graphQL.rawQuery(`
     {
@@ -86,8 +90,9 @@ function App() {
   }
 
   const subscribeToTransactions = () => {
-    const unsubscribe = kontistClient.models.transaction.subscribe(
-      handleNewTransaction
+    const { unsubscribe } = kontistClient.models.transaction.subscribe(
+      handleNewTransaction,
+      handleErrors
     );
     unsubscribeHandler = unsubscribe;
   };
@@ -98,7 +103,7 @@ function App() {
   };
 
   const subscribeToTransactions2 = () => {
-    const unsubscribe = kontistClient.models.transaction.subscribe(
+    const { unsubscribe } = kontistClient.models.transaction.subscribe(
       handleNewTransaction2
     );
     unsubscribeHandler2 = unsubscribe;
@@ -108,6 +113,68 @@ function App() {
     console.log("___will unsubscribe #2___");
     unsubscribeHandler2();
   };
+
+  const createTransfers = async () => {
+    await kontistClient.models.transfer.createMany(
+      [...Array(20).keys()].map(amount => ({
+        amount: amount + 1,
+        recipient: "Santa Claus",
+        iban: "DE18512308000000060339",
+        purpose: `transfer ${amount}`
+      }))
+    );
+  };
+
+  const fetchTransactions = async () => {
+    const transactions = await kontistClient.models.transaction.fetch({
+      first: 3
+    });
+
+    console.log("___transactions___", transactions);
+
+    const { endCursor } = transactions.pageInfo;
+
+    const otherTransactions = await kontistClient.models.transaction.fetch({
+      first: 3,
+      after: endCursor
+    });
+
+    console.log("___other transactions___", otherTransactions);
+  };
+
+  const fetchAllTransactions = async () => {
+    let transactions = [];
+    for await (const transaction of kontistClient.models.transaction.fetchAll()) {
+      transactions = transactions.concat(transaction);
+    }
+
+    console.log("___end transactions___", transactions);
+  };
+
+  const fetchTransfers = async () => {
+    const transfers = await kontistClient.models.transfer.fetch({
+      last: 3,
+      type: "SEPA_TRANSFER"
+    });
+
+    console.log("___transfers___", transfers);
+
+    const otherTransfers = await transfers.previousPage();
+
+    console.log("___other transfers", otherTransfers);
+  };
+
+  const fetchAllTransfers = async () => {
+    let transfers = [];
+    for await (const transfer of kontistClient.models.transfer.fetchAll({
+      type: "SEPA_TRANSFER"
+    })) {
+      transfers = transfers.concat(transfer);
+    }
+
+    console.log("___end transfers___", transfers);
+  };
+
   return (
     <div className="App">
       <h1>SDK Sandbox</h1>
@@ -152,6 +219,21 @@ function App() {
         <button onClick={unsubscribeToTransactions2}>
           unubscribe to transactions #2
         </button>
+      </div>
+      <div>
+        <button onClick={createTransfers}>create transfers</button>
+      </div>
+      <div>
+        <button onClick={fetchTransactions}>fetch transactions</button>
+      </div>
+      <div>
+        <button onClick={fetchAllTransactions}>fetch all transactions</button>
+      </div>
+      <div>
+        <button onClick={fetchTransfers}>fetch transfers</button>
+      </div>
+      <div>
+        <button onClick={fetchAllTransfers}>fetch all transfers</button>
       </div>
       {token && <div style={{ wordBreak: "break-all" }}>{token}</div>}
     </div>
