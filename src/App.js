@@ -10,9 +10,10 @@ const kontistClient = new Client({
   baseSubscriptionUrl: "ws://localhost:3000",
   clientId,
   redirectUri,
-  scopes: ["users"],
+  scopes: ["accounts offline"],
   state: "some?state&with#uri=components",
-  verifier: "some-random-verifier"
+  //verifier: "some-random-verifier"
+  clientSecret: "kontist1"
 });
 
 let unsubscribeHandler;
@@ -32,11 +33,17 @@ const handleNewTransaction2 = data => {
 
 function App() {
   const [user, setUser] = useState();
-  const [token, setToken] = useState();
+  const [token, setToken] = useState("");
+  const [cardId, setCardId] = useState("");
+  const [pin, setPin] = useState("");
+  const [authorizationToken, setAuthorizationToken] = useState("");
+  const [confirmationId, setConfirmationId] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
 
   useEffect(() => {
     const authenticateAndFetchUser = async () => {
       const token = await kontistClient.auth.fetchToken(document.location.href);
+      console.log("___regular token___", token);
       setToken(token.accessToken);
       try {
         const { viewer } = await kontistClient.graphQL.rawQuery(`
@@ -60,7 +67,9 @@ function App() {
   }, []);
 
   const refreshAccessTokenViaIframe = async () => {
-    const token = await kontistClient.auth.refresh();
+    let token;
+    token = await kontistClient.auth.refresh();
+    console.log("___token was refreshed___", token);
     setToken(token.accessToken);
     await kontistClient.graphQL.rawQuery(`
     {
@@ -79,7 +88,8 @@ function App() {
   async function triggerLoginConfirmation() {
     try {
       const confirmedToken = await kontistClient.auth.push.getConfirmedToken();
-      setToken(confirmedToken);
+      console.log("___confirmedToken___", confirmedToken);
+      setToken(confirmedToken.accessToken);
     } catch (err) {
       console.log({ err });
     }
@@ -148,7 +158,10 @@ function App() {
       transactions = transactions.concat(transaction);
     }
 
-    console.log("___end transactions___", transactions);
+    console.log(
+      "___received transactions___",
+      transactions.map(transaction => transaction.bookingDate)
+    );
   };
 
   const fetchTransfers = async () => {
@@ -167,12 +180,72 @@ function App() {
   const fetchAllTransfers = async () => {
     let transfers = [];
     for await (const transfer of kontistClient.models.transfer.fetchAll({
-      type: "SEPA_TRANSFER"
+      type: "SEPA_TRANSFER",
+      where: { status: "CONFIRMED" }
     })) {
       transfers = transfers.concat(transfer);
     }
 
-    console.log("___end transfers___", transfers);
+    console.log(
+      "___end transfers___",
+      transfers.map(transfer => transfer.status)
+    );
+  };
+
+  const getCards = async () => {
+    const cards = await kontistClient.models.card.fetch();
+    console.log("___cards___", cards);
+  };
+
+  const handleCardIdChange = event => {
+    setCardId(event.target.value);
+  };
+
+  const handlePinChange = event => {
+    setPin(event.target.value);
+  };
+
+  const handleAuthorizationTokenChange = event => {
+    setAuthorizationToken(event.target.value);
+  };
+
+  const handleVerificationTokenChange = event => {
+    setVerificationToken(event.target.value);
+  };
+
+  const getCard = async () => {
+    const card = await kontistClient.models.card.get({
+      id: cardId
+    });
+    console.log("___card___", card);
+  };
+
+  const activateCard = async () => {
+    const card = await kontistClient.models.card.activate({
+      id: cardId,
+      verificationToken
+    });
+    console.log("___card___", card);
+  };
+
+  const changePin = async () => {
+    const confirmationId = await kontistClient.models.card.changePIN({
+      id: cardId,
+      pin
+    });
+
+    console.log("___confirmationId___", confirmationId);
+
+    setConfirmationId(confirmationId);
+  };
+
+  const confirmChangePin = async () => {
+    const status = await kontistClient.models.card.confirmChangePIN({
+      confirmationId,
+      authorizationToken
+    });
+
+    console.log("___status___", status);
   };
 
   return (
@@ -234,6 +307,39 @@ function App() {
       </div>
       <div>
         <button onClick={fetchAllTransfers}>fetch all transfers</button>
+      </div>
+      <div>
+        <button onClick={getCards}>fetch all cards</button>
+      </div>
+      <div>
+        card id:
+        <input id="card-id" value={cardId} onChange={handleCardIdChange} />
+      </div>
+      <div>
+        <button onClick={getCard}>fetch card</button>
+      </div>
+      <div>
+        verificationToken:{" "}
+        <input
+          id="verification-token"
+          value={verificationToken}
+          onChange={handleVerificationTokenChange}
+        />
+        <button onClick={activateCard}>activate card</button>
+      </div>
+      <div>
+        pin: <input id="pin" value={pin} onChange={handlePinChange} />
+        <button onClick={changePin}>change pin</button>
+      </div>
+      <div>
+        confirmationId: <input id="pin" value={confirmationId} disabled />
+        token:{" "}
+        <input
+          id="authorization-token"
+          value={authorizationToken}
+          onChange={handleAuthorizationTokenChange}
+        />
+        <button onClick={confirmChangePin}>confirm change pin</button>
       </div>
       {token && <div style={{ wordBreak: "break-all" }}>{token}</div>}
     </div>
