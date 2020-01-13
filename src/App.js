@@ -39,6 +39,7 @@ function App() {
   const [authorizationToken, setAuthorizationToken] = useState("");
   const [confirmationId, setConfirmationId] = useState("");
   const [verificationToken, setVerificationToken] = useState("");
+  const [action, setAction] = useState("");
 
   useEffect(() => {
     const authenticateAndFetchUser = async () => {
@@ -213,6 +214,10 @@ function App() {
     setVerificationToken(event.target.value);
   };
 
+  const handleActionChange = event => {
+    setAction(event.target.value);
+  };
+
   const getCard = async () => {
     const card = await kontistClient.models.card.get({
       id: cardId
@@ -241,11 +246,82 @@ function App() {
 
   const confirmChangePin = async () => {
     const status = await kontistClient.models.card.confirmChangePIN({
+      id: cardId,
       confirmationId,
       authorizationToken
     });
 
     console.log("___status___", status);
+  };
+
+  const changeCardStatus = async () => {
+    const card = await kontistClient.models.card.changeStatus({
+      id: cardId,
+      action
+    });
+
+    console.log("___card___", card);
+  };
+
+  const createCard = async () => {
+    const card = await kontistClient.models.card.create({
+      type: "VISA_BUSINESS_DEBIT"
+    });
+
+    console.log("___card___", card);
+  };
+
+  const updateCardSettings = async () => {
+    const settings = await kontistClient.models.card.updateSettings({
+      id: cardId,
+      contactlessEnabled: false,
+      cardNotPresentLimits: {
+        daily: {
+          maxAmountCents: 350000,
+          maxTransactions: 19
+        },
+        monthly: {
+          maxAmountCents: 2000000,
+          maxTransactions: 619
+        }
+      },
+      cardPresentLimits: {
+        daily: {
+          maxAmountCents: 440000,
+          maxTransactions: 14
+        },
+        monthly: {
+          maxAmountCents: 2600000,
+          maxTransactions: 468
+        }
+      }
+    });
+
+    console.log("___settings___", settings);
+  };
+
+  const getCardLimits = async () => {
+    const limits = await kontistClient.models.card.getLimits({
+      id: cardId
+    });
+
+    console.log("___limits___", limits);
+  };
+
+  const categorizeTransaction = async () => {
+    const transaction = await kontistClient.models.transaction.categorize({
+      id: "9e5b4c9e-07a7-4fad-80fd-aec2ce191768",
+      category: "VAT_PAYMENT",
+      userSelectedBookingDate: new Date().toISOString()
+    });
+
+    console.log("___categorized___", transaction);
+  };
+
+  const getTransferSuggestions = async () => {
+    const suggestions = await kontistClient.models.transfer.suggestions();
+
+    console.log("___suggestions___", suggestions);
   };
 
   return (
@@ -340,6 +416,28 @@ function App() {
           onChange={handleAuthorizationTokenChange}
         />
         <button onClick={confirmChangePin}>confirm change pin</button>
+      </div>
+      <div>
+        action:{" "}
+        <input id="action" value={action} onChange={handleActionChange} />
+        <button onClick={changeCardStatus}>change card status</button>
+      </div>
+      <div>
+        <button onClick={createCard}>create card</button>
+      </div>
+      <div>
+        <button onClick={updateCardSettings}>update settings</button>
+      </div>
+      <div>
+        <button onClick={getCardLimits}>get card limits</button>
+      </div>
+      <div>
+        <button onClick={categorizeTransaction}>categorize transaction</button>
+      </div>
+      <div>
+        <button onClick={getTransferSuggestions}>
+          get transfer suggestions
+        </button>
       </div>
       {token && <div style={{ wordBreak: "break-all" }}>{token}</div>}
     </div>
